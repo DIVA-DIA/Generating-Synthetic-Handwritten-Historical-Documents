@@ -1,0 +1,71 @@
+#!/usr/bin/python3
+
+import argparse
+import sys
+import os
+
+import cv2
+import torchvision.transforms as transforms
+from torchvision.utils import save_image
+from torch.utils.data import DataLoader
+from torch.autograd import Variable
+import torch
+
+from models import Generator
+from datasets import ImageDataset
+from HTR_ctc.train_code.train_htr import *
+from HTR_ctc.train_code.config import *
+from HTR_ctc.generated_data_loader.generated_utils import *
+from HTR_ctc.generated_data_loader.generated_loader import *
+
+
+
+rd, scheduler = InitStandardRD(wandb=None,nlr=0.0001)
+
+transforms_ = [ transforms.ToTensor()]
+
+Tensor = torch.cuda.FloatTensor
+input_A = Tensor(1, 3, 256, 256)
+netG_A2B = Generator(3, 3)
+netG_A2B.cuda()
+netG_A2B.load_state_dict(torch.load('/home/manuel/CycleGANRD/HTR_ctc/saved_models/best/netG_A2B.pth'))
+
+# crops = generateCrops(3, '/home/manuel/CycleGANRD/PyTorch-CycleGAN/datasets/cropped_data/', just_generate=True,
+#                              crop_path='train/A/')
+transform = transforms.Compose(transforms_)
+
+item_A = transform(cv2.normalize(cv2.imread('/home/manuel/CycleGANRD/PyTorch-CycleGAN/output/questions2.png'), None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F))
+real_A = Variable(input_A.copy_(item_A))
+fake_B = (netG_A2B(real_A).data)
+np_img = fake_B.detach().squeeze(0).permute(1, 2, 0).cpu().numpy() * 255
+cv2.imwrite('/home/manuel/CycleGANRD/PyTorch-CycleGAN/output/questionTrans.png', np_img)
+rd.loadModel('Only_gen3.pt')
+bool = rd.testOnHistorical()
+bool = False
+for _ in range(20):
+    closs = []
+    dataloader = DataLoader(ImageDataset('/home/manuel/CycleGANRD/PyTorch-CycleGAN/datasets/cropped_data/', transforms_=transforms_, unaligned=True), batch_size=1, shuffle=True, num_workers=8)
+    for i, batch in enumerate(dataloader):
+        real_A = Variable(input_A.copy_(batch['A']))
+        fake_B = (netG_A2B(real_A).data)
+        np_img = fake_B.detach().squeeze(0).permute(1, 2, 0).cpu().numpy() * 255
+        cv2.imwrite('/home/manuel/CycleGANRD/PyTorch-CycleGAN/output/B/%04d.png' % (i+1), np_img )
+        word_array, info_array = cropWords(fake_B, csvfile=batch['A_csv'])
+        for i in range(0, len(word_array)):
+            if info_array[i] != 'l':
+                # cv2.imwrite('/home/manuel/CycleGANRD/PyTorch-CycleGAN/output/word_' + str(i) + '.png', word_array[i]*255)
+                tens = resizeImg(word_array[i], (32+16, None)).transpose(1, 3).transpose(2, 3)
+                np_img = tens.detach().squeeze(0).permute(1, 2, 0).cpu().numpy()
+                cv2.imwrite('/home/manuel/CycleGANRD/PyTorch-CycleGAN/output/word_trans' + str(i) + '.png', np_img*255)
+                loss, _ = rd.train(tens, (info_array[i],))
+                try:
+                    closs += [loss.data]
+                except:
+                    print('bla')
+                #rd.getResult(tens.squeeze(0))
+                #print(loss)
+    print('Average loss:' + str(sum(closs) / len(closs)))
+    rd.testOnHistorical()
+    scheduler.step()
+    rd.saveModel('Only_gen3.pt')
+

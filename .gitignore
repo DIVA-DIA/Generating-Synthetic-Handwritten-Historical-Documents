@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+PyTorch-CycleGAN/datasets/
+PyTorch-CycleGAN/output/
+HTR_ctc/data/
+HTR_ctc/saved_datasets/
+HTR_ctc/saved_models/
+HTR_ctc/.idea/
+.idea/
+.git_old_/
