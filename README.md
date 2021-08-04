@@ -6,6 +6,8 @@ Base of the reading discriminator is from https://github.com/georgeretsi/HTR-ctc
 
 All code additions and changes were done by me as part of my master thesis and the following publication. If there are any questions about the code I'm always happy to answer them at manuel.drazyk@unifr.ch .
 
+The PDF to image transformation was done with the code you find [here](https://github.com/aalbec/master_thesis/tree/master/book_generation).
+
 # Citing us
 If you use our software, please cite our paper as:
 ```
